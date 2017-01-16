@@ -70,19 +70,20 @@ pub unsafe extern fn network_service_start(service: *mut c_void) -> u8 {
 pub extern fn network_service_add_protocol(sp: *mut c_void,
                                            userdata: FFIObjectPtr,
                                            protocol_id: *mut i8,
-                                           initialize: InitializeFN,
-                                           connect: ConnectedFN,
-                                           read: ReadFN,
-                                           disconnected: DisconnectedFN
+                                           max_packet_id: u8,
+                                           cbs: *mut FFICallbacks
 ) -> u8 {
     let service = unsafe { &mut *(sp as *mut NetworkService) };
     let pid = cast_protocol_id(protocol_id);
-    let number_of_different_packet_types = 10;
     let ffiobject = FFIObject(userdata);
-    let pinger = Arc::new(FFIHandler::new(ffiobject, initialize, connect, read, disconnected));
+    let pinger = unsafe { Arc::new(FFIHandler::new(ffiobject,
+                                                   (*cbs).initialize,
+                                                   (*cbs).connected,
+                                                   (*cbs).read,
+                                                   (*cbs).disconnected)) };
     match service.register_protocol(pinger,
                                     pid,
-                                    number_of_different_packet_types,
+                                    max_packet_id,
                                     &TMP_CAPABILITIES) {
         Ok(()) => {
             ERR_OK
@@ -179,6 +180,13 @@ pub struct FFIHandler {
     connected_fun: ConnectedFN,
     read_fun: ReadFN,
     disconnected_fun: DisconnectedFN,
+}
+
+pub struct FFICallbacks {
+    initialize: InitializeFN,
+    connected: ConnectedFN,
+    read: ReadFN,
+    disconnected: DisconnectedFN,
 }
 
 pub struct FFIObject(*const c_void);

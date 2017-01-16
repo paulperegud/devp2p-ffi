@@ -12,6 +12,21 @@ extern "C" {
         ERR_ERROR = 255
     };
 
+    typedef void (*InitializeCB)(void* ud, void* io);
+    typedef void (*ConnectedCB)(void* ud, void* io, size_t peer_id);
+    typedef void (*ReadCB)(void* ud, void* io,
+                           size_t peer_id, uint8_t packet_id,
+                           size_t len, uint8_t const* ptr);
+    typedef void (*DisconnectedCB)(void* ud, void* io,
+                                   size_t peer_id);
+
+    struct FFICallbacks {
+        InitializeCB initialize;
+        ConnectedCB connect;
+        ReadCB read;
+        DisconnectedCB disconnect;
+    };
+
     // return service
     void* network_service(uint8_t* errno);
     // consumes service
@@ -24,13 +39,8 @@ extern "C" {
     uint8_t network_service_add_protocol(void* service,
                                          void* userdata,
                                          uint8_t* protocol_id,
-                                         void (*InitializeCB)(void* ud, void* io),
-                                         void (*ConnectCB)(void* ud, void* io, size_t peer_id),
-                                         void (*ReadCB)(void* ud, void* io,
-                                                        size_t peer_id, uint8_t packet_id,
-                                                        size_t len, uint8_t const* ptr),
-                                         void (*DisconnectedCB)(void* ud, void* io,
-                                                                size_t peer_id)
+                                         uint8_t max_packet_id,
+                                         struct FFICallbacks* callbacks
                                          );
 
     void protocol_send(void* service, uint8_t* protocol_id,
