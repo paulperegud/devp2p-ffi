@@ -67,19 +67,21 @@ pub unsafe extern fn network_service_start(service: *mut c_void) -> u8 {
 }
 
 #[no_mangle]
-pub unsafe extern fn network_service_add_protocol(sp: *mut c_void,
-                                                  userdata: FFIObjectPtr,
-                                                  initialize: InitializeFN,
-                                                  connect: ConnectedFN,
-                                                  read: ReadFN,
-                                                  disconnected: DisconnectedFN
+pub extern fn network_service_add_protocol(sp: *mut c_void,
+                                           userdata: FFIObjectPtr,
+                                           protocol_id: *mut i8,
+                                           initialize: InitializeFN,
+                                           connect: ConnectedFN,
+                                           read: ReadFN,
+                                           disconnected: DisconnectedFN
 ) -> u8 {
-    let service = &mut *(sp as *mut NetworkService);
+    let service = unsafe { &mut *(sp as *mut NetworkService) };
+    let pid = cast_protocol_id(protocol_id);
     let number_of_different_packet_types = 10;
     let ffiobject = FFIObject(userdata);
     let pinger = Arc::new(FFIHandler::new(ffiobject, initialize, connect, read, disconnected));
     match service.register_protocol(pinger,
-                                    TMP_PROTOCOL,
+                                    pid,
                                     number_of_different_packet_types,
                                     &TMP_CAPABILITIES) {
         Ok(()) => {
@@ -89,6 +91,12 @@ pub unsafe extern fn network_service_add_protocol(sp: *mut c_void,
             ERR_ERROR
         }
     }
+}
+
+fn cast_protocol_id(protocol_id: *mut i8) -> [u8; 3] {
+    let c_str: &CStr = unsafe { CStr::from_ptr(protocol_id) };
+    let buf: &[u8] = c_str.to_bytes();
+    [buf[0], buf[1], buf[2]]
 }
 
 #[no_mangle]
@@ -117,12 +125,13 @@ pub unsafe extern fn network_service_node_name(sp: *mut c_void) -> *mut c_char {
 
 #[allow(non_snake_case)]
 #[no_mangle]
-pub unsafe extern fn protocol_send(ns_ptr: *mut c_void, peer: PeerId,
-                                   packet_id: u8, data_ptr: *mut u8,
+pub unsafe extern fn protocol_send(ns_ptr: *mut c_void, protocol_id: *mut i8,
+                                   peer: PeerId, packet_id: u8, data_ptr: *mut u8,
                                    length: usize) {
     let service = &mut *(ns_ptr as *mut NetworkService);
     let bytes = std::slice::from_raw_parts(data_ptr, length).clone().to_vec();
-    service.with_context(TMP_PROTOCOL, |io| {
+    let pid = cast_protocol_id(protocol_id);
+    service.with_context(pid, |io| {
         match io.send(peer, packet_id, bytes.clone()) {
             Ok(()) => (),
             Err(_) => ()

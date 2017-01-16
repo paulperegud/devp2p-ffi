@@ -23,6 +23,7 @@ extern "C" {
     // Returns handler
     uint8_t network_service_add_protocol(void* service,
                                          void* userdata,
+                                         uint8_t* protocol_id,
                                          void (*InitializeCB)(void* ud, void* io),
                                          void (*ConnectCB)(void* ud, void* io, size_t peer_id),
                                          void (*ReadCB)(void* ud, void* io,
@@ -32,7 +33,8 @@ extern "C" {
                                                                 size_t peer_id)
                                          );
 
-    void protocol_send(void* service, size_t peer_id, uint8_t packet_id,
+    void protocol_send(void* service, uint8_t* protocol_id,
+                       size_t peer_id, uint8_t packet_id,
                        char* buffer, size_t size);
     void protocol_reply(void* io, size_t peer_id, uint8_t packet_id,
                         uint8_t* buffer, size_t size);
