@@ -24,15 +24,14 @@ use libc::c_void;
 use std::os::raw::c_char;
 use std::str;
 
-const PROTOCOL_VERSION: u32 = 4;
+// const PROTOCOL_VERSION: u32 = 4;
 
 const ERR_OK: u8 = 0;
 const ERR_UNKNOWN_PEER: u8 = 1;
 const ERR_ERROR: u8 = 255;
 
-// TODO: make this a parameter
-const TMP_PROTOCOL: [u8; 3] = *b"myp";
-const TMP_CAPABILITIES: [u8; 1] = [1u8];
+// const TMP_PROTOCOL: [u8; 3] = *b"myp";
+// const TMP_CAPABILITIES: [u8; 1] = [1u8];
 
 
 // TODO: check if errno is needed
@@ -71,26 +70,22 @@ pub extern fn network_service_add_protocol(sp: *mut c_void,
                                            userdata: FFIObjectPtr,
                                            protocol_id: *mut i8,
                                            max_packet_id: u8,
+                                           versions: *mut u8,
+                                           versions_len: usize,
                                            cbs: *mut FFICallbacks
 ) -> u8 {
     let service = unsafe { &mut *(sp as *mut NetworkService) };
     let pid = cast_protocol_id(protocol_id);
+    let capabilities = cast_slice(versions, versions_len);
     let ffiobject = FFIObject(userdata);
     let pinger = unsafe { Arc::new(FFIHandler::new(ffiobject,
                                                    (*cbs).initialize,
                                                    (*cbs).connected,
                                                    (*cbs).read,
                                                    (*cbs).disconnected)) };
-    match service.register_protocol(pinger,
-                                    pid,
-                                    max_packet_id,
-                                    &TMP_CAPABILITIES) {
-        Ok(()) => {
-            ERR_OK
-        },
-        Err(_) => {
-            ERR_ERROR
-        }
+    match service.register_protocol(pinger, pid, max_packet_id, &capabilities) {
+        Ok(()) => ERR_OK,
+        Err(_) => ERR_ERROR
     }
 }
 
@@ -98,6 +93,14 @@ fn cast_protocol_id(protocol_id: *mut i8) -> [u8; 3] {
     let c_str: &CStr = unsafe { CStr::from_ptr(protocol_id) };
     let buf: &[u8] = c_str.to_bytes();
     [buf[0], buf[1], buf[2]]
+}
+
+fn cast_slice(buff: *mut u8, len: usize) -> Vec<u8> {
+    let slice = unsafe { std::slice::from_raw_parts(buff, len) };
+    let mut dst: Vec<u8> = Vec::<u8>::with_capacity(len);
+    unsafe {dst.set_len(len)};
+    dst.clone_from_slice(slice);
+    dst
 }
 
 #[no_mangle]
@@ -154,9 +157,10 @@ pub unsafe extern fn protocol_reply(io_ptr: *mut c_void, peer: PeerId,
 }
 
 #[no_mangle]
-pub unsafe extern fn peer_protocol_version(io_ptr: *const c_void, peer: PeerId, errno: *mut u8) {
+pub unsafe extern fn peer_protocol_version(io_ptr: *const c_void, pid: *mut i8, peer: PeerId, errno: *mut u8) {
     let io = &mut *(io_ptr as *mut NetworkContext);
-    match io.protocol_version(TMP_PROTOCOL, peer) {
+    let protocol_id = cast_protocol_id(pid);
+    match io.protocol_version(protocol_id, peer) {
         Some(pv) => {
             *errno = ERR_OK;
             pv

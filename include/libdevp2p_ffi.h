@@ -40,6 +40,8 @@ extern "C" {
                                          void* userdata,
                                          uint8_t* protocol_id,
                                          uint8_t max_packet_id,
+                                         uint8_t* versions,
+                                         size_t versions_len,
                                          struct FFICallbacks* callbacks
                                          );
 
@@ -49,7 +51,9 @@ extern "C" {
     void protocol_reply(void* io, size_t peer_id, uint8_t packet_id,
                         uint8_t* buffer, size_t size);
 
-    uint8_t peer_protocol_version(void* io, size_t peer_id, uint8_t* errno);
+    uint8_t peer_protocol_version(void* io,
+                                  uint8_t* protocol_id,
+                                  size_t peer_id, uint8_t* errno);
 
     int32_t network_service_add_reserved_peer(void* service, char const* node_name);
 
