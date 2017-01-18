@@ -1,3 +1,13 @@
+/// DevP2P-ffi -- C interface to Ethcore Parity's DEVP2P implementation
+///
+/// Notes:
+/// * memory should be freed by side which allocated it
+/// * contents of buffers passed around should be copied, since they will probably be freed
+///   after return
+/// * opaque pointers:
+///   - service: represents DevP2P service; create, start, add subprotocol, do work, free
+///   - io: network context; you can use it in callback where it is passed; don't save it for later!
+///   - userdata: state of your subprotocol handler
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -12,12 +22,13 @@ extern "C" {
         ERR_ERROR = 255
     };
 
-    typedef void (*InitializeCB)(void* ud, void* io);
-    typedef void (*ConnectedCB)(void* ud, void* io, size_t peer_id);
-    typedef void (*ReadCB)(void* ud, void* io,
+    // callback types defined
+    typedef void (*InitializeCB)(void* userdata, void* io);
+    typedef void (*ConnectedCB)(void* userdata, void* io, size_t peer_id);
+    typedef void (*ReadCB)(void* userdata, void* io,
                            size_t peer_id, uint8_t packet_id,
-                           size_t len, uint8_t const* ptr);
-    typedef void (*DisconnectedCB)(void* ud, void* io,
+                           size_t ptr_len, uint8_t const* ptr);
+    typedef void (*DisconnectedCB)(void* userdata, void* io,
                                    size_t peer_id);
 
     struct FFICallbacks {
@@ -27,15 +38,16 @@ extern "C" {
         DisconnectedCB disconnect;
     };
 
-    // return service
+    // creates service, returns opaque pointer to service
     void* network_service(uint8_t* errno);
-    // consumes service
+    // consumes opaque pointer to service, frees it
     void network_service_free(void* service);
 
+    // starts service, returns ErrCodes
     uint8_t network_service_start(void* service);
 
     // Adds subprotocol. Call only after network_service_start
-    // Returns handler
+    // returns ErrCodes
     uint8_t network_service_add_protocol(void* service,
                                          void* userdata,
                                          uint8_t* protocol_id,
@@ -47,19 +59,16 @@ extern "C" {
 
     void protocol_send(void* service, uint8_t* protocol_id,
                        size_t peer_id, uint8_t packet_id,
-                       char* buffer, size_t size);
+                       char* buffer, size_t buffer_size);
     void protocol_reply(void* io, size_t peer_id, uint8_t packet_id,
-                        uint8_t* buffer, size_t size);
+                        uint8_t* buffer, size_t buffer_size);
 
-    uint8_t peer_protocol_version(void* io,
-                                  uint8_t* protocol_id,
+    uint8_t peer_protocol_version(void* io, uint8_t* protocol_id,
                                   size_t peer_id, uint8_t* errno);
 
     int32_t network_service_add_reserved_peer(void* service, char const* node_name);
 
     uint8_t const* network_service_node_name(void* service);
-
-    int32_t say_hello(int32_t(*func)(int32_t));
 
 #ifdef __cplusplus
 }
