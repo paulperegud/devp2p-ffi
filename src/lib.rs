@@ -26,8 +26,41 @@ use std::str;
 
 const ERR_OK: u8 = 0;
 const ERR_UNKNOWN_PEER: u8 = 1;
-const ERR_NETWORK_ERROR: u8 = 2;
-const ERR_ERROR: u8 = 255;
+const ERR_AUTH: u8 = 2;
+const ERR_EXPIRED: u8 = 3;
+const ERR_BADPROTOCOL: u8 = 4;
+const ERR_PEERNOTFOUND: u8 = 5;
+const ERR_DISCONNECTED: u8 = 19; // 10..19
+const ERR_UTIL: u8 = 29; // 20..29
+const ERR_IO: u8 = 39; // 30..39
+const ERR_ADDRESSPARSE: u8 = 49; // 40..49
+const ERR_ADDRESSRESOLVE: u8 = 59; // 50..59
+const ERR_STDIO: u8 = 69; // 60..69
+
+fn nr2err_code(err: NetworkError) -> u8 {
+    match err {
+        net::NetworkError::Auth =>
+            ERR_AUTH,
+        net::NetworkError::BadProtocol =>
+            ERR_BADPROTOCOL,
+        net::NetworkError::Expired =>
+            ERR_EXPIRED,
+        net::NetworkError::PeerNotFound =>
+            ERR_PEERNOTFOUND,
+        net::NetworkError::Disconnect(_) =>
+            ERR_DISCONNECTED,
+        net::NetworkError::Util(_) =>
+            ERR_UTIL,
+        net::NetworkError::Io(_) =>
+            ERR_IO,
+        net::NetworkError::AddressParse(_) =>
+            ERR_ADDRESSPARSE,
+        net::NetworkError::AddressResolve(_) =>
+            ERR_ADDRESSRESOLVE,
+        net::NetworkError::StdIo(_) =>
+            ERR_STDIO
+    }
+}
 
 type InitializeFN = extern fn(*const c_void, &NetworkContext);
 type ConnectedFN = extern fn(*const c_void, &NetworkContext, PeerId);
@@ -46,7 +79,6 @@ pub unsafe extern fn config_local() -> *mut c_void {
     Box::into_raw(Box::new(conf)) as *mut c_void
 }
 
-// TODO: check if errno is needed
 #[no_mangle]
 pub unsafe extern fn network_service(conf_ptr: *mut c_void, errno: *mut u8) -> *mut c_void {
     let conf = Box::from_raw(conf_ptr as *mut NetworkConfiguration);
@@ -55,8 +87,8 @@ pub unsafe extern fn network_service(conf_ptr: *mut c_void, errno: *mut u8) -> *
             *errno = ERR_OK;
             Box::into_raw(Box::new(service)) as *mut c_void
         },
-        Err(_) => {
-            *errno = ERR_ERROR;
+        Err(err) => {
+            *errno = nr2err_code(err);
             std::ptr::null_mut()
         }
     }
@@ -71,10 +103,7 @@ pub unsafe extern fn network_service_free(x: *mut c_void) {
 #[no_mangle]
 pub unsafe extern fn network_service_start(service: *mut c_void) -> u8 {
     let ns = &mut *(service as *mut NetworkService);
-    match ns.start() {
-        Ok(()) => ERR_OK,
-        Err(_) => ERR_NETWORK_ERROR
-    }
+    result_to_err_code(ns.start())
 }
 
 #[no_mangle]
@@ -95,10 +124,8 @@ pub extern fn network_service_add_protocol(sp: *mut c_void,
                                                    (*cbs).connected,
                                                    (*cbs).read,
                                                    (*cbs).disconnected)) };
-    match service.register_protocol(pinger, pid, max_packet_id, &capabilities) {
-        Ok(()) => ERR_OK,
-        Err(_) => ERR_ERROR
-    }
+    let res = service.register_protocol(pinger, pid, max_packet_id, &capabilities);
+    result_to_err_code(res)
 }
 
 #[no_mangle]
@@ -106,10 +133,8 @@ pub unsafe extern fn network_service_add_reserved_peer(sp: *mut c_void,
                                                        peer_p: *mut c_char) -> u8 {
     let service = &mut *(sp as *mut NetworkService);
     let peer_name = raw_into_str(peer_p);
-    match service.add_reserved_peer(&&peer_name) {
-        Ok(()) => ERR_OK,
-        Err(_) => ERR_ERROR
-    }
+    let res = service.add_reserved_peer(&&peer_name);
+    result_to_err_code(res)
 }
 
 #[no_mangle]
@@ -145,13 +170,10 @@ pub unsafe extern fn protocol_send(ns_ptr: *mut c_void, protocol_id: *mut i8,
 #[no_mangle]
 pub unsafe extern fn protocol_reply(io_ptr: *mut c_void, peer: PeerId,
                                     packet_id: u8, data_ptr: *mut u8,
-                                    length: usize) {
+                                    length: usize) -> u8 {
     let io = &mut *(io_ptr as *mut NetworkContext);
     let bytes = std::slice::from_raw_parts(data_ptr, length).clone().to_vec();
-    match io.send(peer, packet_id, bytes) {
-        Ok(()) => (),
-        Err(_) => ()
-    }
+    result_to_err_code(io.send(peer, packet_id, bytes))
 }
 
 #[no_mangle]
@@ -227,6 +249,13 @@ impl NetworkProtocolHandler for FFIHandler {
 }
 
 // some helper functions
+
+fn result_to_err_code(res: Result<(), NetworkError>) -> u8 {
+    match res {
+        Ok(()) => ERR_OK,
+        Err(err) => nr2err_code(err)
+    }
+}
 
 fn cast_protocol_id(protocol_id: *mut i8) -> [u8; 3] {
     let c_str: &CStr = unsafe { CStr::from_ptr(protocol_id) };
