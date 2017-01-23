@@ -1,4 +1,4 @@
-// Copyright 2016 GolemFactory GMBH (Switzerland).
+// Copyright 2016-2017 GolemFactory GMBH (Switzerland).
 
 // DevP2P-FFI is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -16,29 +16,41 @@
 extern crate libc;
 extern crate ethcore_network as net;
 use net::*;
-
 use std::sync::Arc;
+
 use std::ffi::CString;
 use std::ffi::CStr;
 use libc::c_void;
 use std::os::raw::c_char;
 use std::str;
 
-// const PROTOCOL_VERSION: u32 = 4;
-
 const ERR_OK: u8 = 0;
 const ERR_UNKNOWN_PEER: u8 = 1;
+const ERR_NETWORK_ERROR: u8 = 2;
 const ERR_ERROR: u8 = 255;
 
-// const TMP_PROTOCOL: [u8; 3] = *b"myp";
-// const TMP_CAPABILITIES: [u8; 1] = [1u8];
+type InitializeFN = extern fn(*const c_void, &NetworkContext);
+type ConnectedFN = extern fn(*const c_void, &NetworkContext, PeerId);
+type ReadFN = extern fn(*const c_void, &NetworkContext, PeerId, u8, *const u8, usize);
+type DisconnectedFN = extern fn(*const c_void, &NetworkContext, PeerId);
 
+#[no_mangle]
+pub unsafe extern fn config_with_port(port: u16) -> *mut c_void {
+    let conf = NetworkConfiguration::new_with_port(port);
+    Box::into_raw(Box::new(conf)) as *mut c_void
+}
+
+#[no_mangle]
+pub unsafe extern fn config_local() -> *mut c_void {
+    let conf = NetworkConfiguration::new_local();
+    Box::into_raw(Box::new(conf)) as *mut c_void
+}
 
 // TODO: check if errno is needed
 #[no_mangle]
-pub unsafe extern fn network_service(errno: *mut u8) -> *mut c_void {
-    let conf = NetworkConfiguration::new_local();
-    match NetworkService::new(conf) {
+pub unsafe extern fn network_service(conf_ptr: *mut c_void, errno: *mut u8) -> *mut c_void {
+    let conf = Box::from_raw(conf_ptr as *mut NetworkConfiguration);
+    match NetworkService::new(*conf) {
         Ok(service) => {
             *errno = ERR_OK;
             Box::into_raw(Box::new(service)) as *mut c_void
@@ -61,7 +73,7 @@ pub unsafe extern fn network_service_start(service: *mut c_void) -> u8 {
     let ns = &mut *(service as *mut NetworkService);
     match ns.start() {
         Ok(()) => ERR_OK,
-        Err(_) => ERR_ERROR
+        Err(_) => ERR_NETWORK_ERROR
     }
 }
 
@@ -87,20 +99,6 @@ pub extern fn network_service_add_protocol(sp: *mut c_void,
         Ok(()) => ERR_OK,
         Err(_) => ERR_ERROR
     }
-}
-
-fn cast_protocol_id(protocol_id: *mut i8) -> [u8; 3] {
-    let c_str: &CStr = unsafe { CStr::from_ptr(protocol_id) };
-    let buf: &[u8] = c_str.to_bytes();
-    [buf[0], buf[1], buf[2]]
-}
-
-fn cast_slice(buff: *mut u8, len: usize) -> Vec<u8> {
-    let slice = unsafe { std::slice::from_raw_parts(buff, len) };
-    let mut dst: Vec<u8> = Vec::<u8>::with_capacity(len);
-    unsafe {dst.set_len(len)};
-    dst.clone_from_slice(slice);
-    dst
 }
 
 #[no_mangle]
@@ -172,12 +170,8 @@ pub unsafe extern fn peer_protocol_version(io_ptr: *const c_void, pid: *mut i8, 
     };
 }
 
-type InitializeFN = extern fn(*const c_void, &NetworkContext);
-type ConnectedFN = extern fn(*const c_void, &NetworkContext, PeerId);
-type ReadFN = extern fn(*const c_void, &NetworkContext, PeerId, u8, *const u8, usize);
-type DisconnectedFN = extern fn(*const c_void, &NetworkContext, PeerId);
-
 /// implementation of devp2p sub-protocol handler for interfacing with FFI
+
 pub struct FFIHandler {
     userdata: FFIObject,
     initialize_fun: InitializeFN,
@@ -233,6 +227,21 @@ impl NetworkProtocolHandler for FFIHandler {
 }
 
 // some helper functions
+
+fn cast_protocol_id(protocol_id: *mut i8) -> [u8; 3] {
+    let c_str: &CStr = unsafe { CStr::from_ptr(protocol_id) };
+    let buf: &[u8] = c_str.to_bytes();
+    [buf[0], buf[1], buf[2]]
+}
+
+fn cast_slice(buff: *mut u8, len: usize) -> Vec<u8> {
+    let slice = unsafe { std::slice::from_raw_parts(buff, len) };
+    let mut dst: Vec<u8> = Vec::<u8>::with_capacity(len);
+    unsafe {dst.set_len(len)};
+    dst.clone_from_slice(slice);
+    dst
+}
+
 pub fn str_ptr(slice: String) -> *const u8 {
     let res = slice + "\0";
     res.as_ptr()

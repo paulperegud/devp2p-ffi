@@ -38,8 +38,12 @@ extern "C" {
         DisconnectedCB disconnect;
     };
 
+    // bind to localhost
+    void* config_local();
+    // bind to 0.0.0.0 with specified port
+    void* config_with_port(uint16_t port);
     // creates service, returns opaque pointer to service
-    void* network_service(uint8_t* errno);
+    void* network_service(void* config, uint8_t* errno);
     // consumes opaque pointer to service, frees it
     void network_service_free(void* service);
 
