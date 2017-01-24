@@ -15,6 +15,17 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 
+    struct StrLen {
+        size_t len;
+        char* buff;
+    };
+
+    struct Configuration {
+        struct StrLen* config_path;
+        struct StrLen* net_config_path;
+        struct StrLen* listen_address;
+    };
+
     /* used as a value returned in errno and everywhere where function returns uint8_t */
     enum ErrCodes {
         ERR_OK = 0,
@@ -52,6 +63,11 @@ extern "C" {
     void* config_local();
     // bind to 0.0.0.0 with specified port
     void* config_with_port(uint16_t port);
+    // advanced configuration
+    void* config_detailed(struct Configuration*);
+
+    void unpack_and_print(struct StrLen*, struct StrLen*);
+
 
     // SERVICE
     // creates service, returns opaque pointer to service

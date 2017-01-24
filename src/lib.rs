@@ -68,16 +68,43 @@ type ReadFN = extern fn(*const c_void, &NetworkContext, PeerId, u8, *const u8, u
 type DisconnectedFN = extern fn(*const c_void, &NetworkContext, PeerId);
 
 #[no_mangle]
+pub unsafe extern fn config_local() -> *mut c_void {
+    let conf = NetworkConfiguration::new_local();
+    Box::into_raw(Box::new(conf)) as *mut c_void
+}
+
+#[no_mangle]
 pub unsafe extern fn config_with_port(port: u16) -> *mut c_void {
     let conf = NetworkConfiguration::new_with_port(port);
     Box::into_raw(Box::new(conf)) as *mut c_void
 }
 
 #[no_mangle]
-pub unsafe extern fn config_local() -> *mut c_void {
-    let conf = NetworkConfiguration::new_local();
+pub unsafe extern fn config_detailed(ptr: *const FFIConfiguration) -> *mut c_void {
+    let mut conf = NetworkConfiguration::new_local();
+    conf.config_path = (*(*ptr).config_path).unpack();
+    conf.net_config_path = (*(*ptr).net_config_path).unpack();
     Box::into_raw(Box::new(conf)) as *mut c_void
 }
+
+#[no_mangle]
+pub unsafe extern fn unpack_and_print(a: *const StrLen, b: *const StrLen) {
+    let xa = (*a).unpack();
+    match xa {
+        Some(str) =>
+            println!("xa: {}", str),
+        None =>
+            println!("xa: None")
+    }
+    let xb = (*b).unpack();
+    match xb {
+        Some(str) =>
+            println!("xb: {}", str),
+        None =>
+            println!("xb: None")
+    }
+}
+
 
 #[no_mangle]
 pub unsafe extern fn network_service(conf_ptr: *mut c_void, errno: *mut u8) -> *mut c_void {
@@ -193,6 +220,34 @@ pub unsafe extern fn peer_protocol_version(io_ptr: *const c_void, pid: *mut i8, 
 }
 
 /// implementation of devp2p sub-protocol handler for interfacing with FFI
+
+pub struct StrLen {
+    len: usize,
+    buff: *mut u8
+}
+
+impl StrLen {
+    pub fn unpack(&self) -> Option<String> {
+        println!("len is {}", self.len);
+        match self.buff.is_null() {
+            true => {
+                None
+            },
+            false => {
+                let vec = cast_slice(self.buff, self.len);
+                let res = String::from_utf8(vec).unwrap();
+                println!("buf is {}", res);
+                Some(res)
+            }
+        }
+    }
+}
+
+pub struct FFIConfiguration {
+    config_path: *const StrLen,
+    net_config_path: *const StrLen,
+    listen_address: *const StrLen,
+}
 
 pub struct FFIHandler {
     userdata: FFIObject,
