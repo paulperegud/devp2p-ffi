@@ -84,6 +84,11 @@ pub unsafe extern fn config_detailed(ptr: *const FFIConfiguration) -> *mut c_voi
     let mut conf = NetworkConfiguration::new_local();
     conf.config_path = (*(*ptr).config_path).unpack();
     conf.net_config_path = (*(*ptr).net_config_path).unpack();
+    let address_str = (*(*ptr).listen_address).unpack();
+    match (*(*ptr).boot_node).unpack() {
+        Some(node) => conf.boot_nodes.push(node),
+        None => ()
+    }
     Box::into_raw(Box::new(conf)) as *mut c_void
 }
 
@@ -247,6 +252,7 @@ pub struct FFIConfiguration {
     config_path: *const StrLen,
     net_config_path: *const StrLen,
     listen_address: *const StrLen,
+    boot_node: *const StrLen,
 }
 
 pub struct FFIHandler {

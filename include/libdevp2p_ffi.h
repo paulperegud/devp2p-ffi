@@ -24,6 +24,7 @@ extern "C" {
         struct StrLen* config_path;
         struct StrLen* net_config_path;
         struct StrLen* listen_address;
+        struct StrLen* boot_node;
     };
 
     /* used as a value returned in errno and everywhere where function returns uint8_t */
