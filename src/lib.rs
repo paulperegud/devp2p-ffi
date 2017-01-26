@@ -101,6 +101,10 @@ unsafe fn parse_config(ptr: *const FFIConfiguration)
     let mut conf = NetworkConfiguration::new_local();
     conf.config_path = (*(*ptr).config_path).unpack();
     conf.net_config_path = (*(*ptr).net_config_path).unpack();
+    match (*ptr).udp_port {
+        0 => conf.udp_port = None,
+        port => conf.udp_port = Some(port)
+    }
     match (*(*ptr).listen_address).unpack() {
         Some(address) => {
             conf.listen_address = address.to_socket_addrs()?.next()
@@ -285,6 +289,7 @@ pub struct FFIConfiguration {
     net_config_path: *const StrLen,
     listen_address: *const StrLen,
     public_address: *const StrLen,
+    udp_port: u16,
     boot_node: *const StrLen,
 }
 

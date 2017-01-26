@@ -21,10 +21,19 @@ extern "C" {
     };
 
     struct Configuration {
+        // Directory path to store general network configuration. None means nothing will be saved
         struct StrLen* config_path;
+        // Directory path to store network-specific configuration. None means nothing will be saved
         struct StrLen* net_config_path;
+        // IP address to advertise. Detected automatically if none.
+        // "address:port" where address is IP address (e.g. "0.0.0.0") or domain name
         struct StrLen* listen_address;
+        // IP address to advertise. Detected automatically if none.
+        // "address:port" where address is IP address (e.g. "0.0.0.0") or domain name
         struct StrLen* public_address;
+        // Port for UDP connections, same as TCP if set to zero
+        uint16_t udp_port;
+        // Bootstrap node address; Parity's devp2p supports a list of boot_nodes; this FFI - not yet.
         struct StrLen* boot_node;
     };
 
