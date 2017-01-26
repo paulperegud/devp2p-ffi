@@ -96,57 +96,6 @@ pub unsafe extern fn config_detailed(ptr: *const FFIConfiguration, errno: *mut u
     }
 }
 
-unsafe fn parse_config(ptr: *const FFIConfiguration)
-                       -> Result<NetworkConfiguration, NetworkError> {
-    let mut conf = NetworkConfiguration::new_local();
-    conf.config_path = (*(*ptr).config_path).unpack();
-    conf.net_config_path = (*(*ptr).net_config_path).unpack();
-    match (*ptr).udp_port {
-        0 => conf.udp_port = None,
-        port => conf.udp_port = Some(port)
-    }
-    match (*(*ptr).listen_address).unpack() {
-        Some(address) => {
-            conf.listen_address = address.to_socket_addrs()?.next()
-        },
-        None => {
-            ()
-        }
-    }
-    match (*(*ptr).public_address).unpack() {
-        Some(address) => {
-            conf.public_address = address.to_socket_addrs()?.next()
-        },
-        None => {
-            ()
-        }
-    }
-    match (*(*ptr).boot_node).unpack() {
-        Some(node) => conf.boot_nodes.push(node),
-        None => ()
-    };
-    Ok(conf)
-}
-
-#[no_mangle]
-pub unsafe extern fn unpack_and_print(a: *const StrLen, b: *const StrLen) {
-    let xa = (*a).unpack();
-    match xa {
-        Some(str) =>
-            println!("xa: {}", str),
-        None =>
-            println!("xa: None")
-    }
-    let xb = (*b).unpack();
-    match xb {
-        Some(str) =>
-            println!("xb: {}", str),
-        None =>
-            println!("xb: None")
-    }
-}
-
-
 #[no_mangle]
 pub unsafe extern fn network_service(conf_ptr: *mut c_void, errno: *mut u8) -> *mut c_void {
     let conf = Box::from_raw(conf_ptr as *mut NetworkConfiguration);
@@ -269,15 +218,11 @@ pub struct StrLen {
 
 impl StrLen {
     pub fn unpack(&self) -> Option<String> {
-        println!("len is {}", self.len);
         match self.buff.is_null() {
-            true => {
-                None
-            },
+            true => None,
             false => {
                 let vec = cast_slice(self.buff, self.len);
                 let res = String::from_utf8(vec).unwrap();
-                println!("buf is {}", res);
                 Some(res)
             }
         }
@@ -348,6 +293,37 @@ impl NetworkProtocolHandler for FFIHandler {
 }
 
 // some helper functions
+unsafe fn parse_config(ptr: *const FFIConfiguration)
+                       -> Result<NetworkConfiguration, NetworkError> {
+    let mut conf = NetworkConfiguration::new_local();
+    conf.config_path = (*(*ptr).config_path).unpack();
+    conf.net_config_path = (*(*ptr).net_config_path).unpack();
+    match (*ptr).udp_port {
+        0 => conf.udp_port = None,
+        port => conf.udp_port = Some(port)
+    }
+    match (*(*ptr).listen_address).unpack() {
+        Some(address) => {
+            conf.listen_address = address.to_socket_addrs()?.next()
+        },
+        None => {
+            ()
+        }
+    }
+    match (*(*ptr).public_address).unpack() {
+        Some(address) => {
+            conf.public_address = address.to_socket_addrs()?.next()
+        },
+        None => {
+            ()
+        }
+    }
+    match (*(*ptr).boot_node).unpack() {
+        Some(node) => conf.boot_nodes.push(node),
+        None => ()
+    };
+    Ok(conf)
+}
 
 fn result_to_err_code(res: Result<(), NetworkError>) -> u8 {
     match res {

@@ -77,9 +77,6 @@ extern "C" {
     // advanced configuration
     void* config_detailed(struct Configuration*, unsigned char* errno);
 
-    void unpack_and_print(struct StrLen*, struct StrLen*);
-
-
     // SERVICE
     // creates service, returns opaque pointer to service
     void* network_service(void* config, uint8_t* errno);
