@@ -16,7 +16,9 @@
 extern crate libc;
 extern crate ethcore_network as net;
 use net::*;
+
 use std::sync::Arc;
+use std::net::ToSocketAddrs;
 
 use std::ffi::CString;
 use std::ffi::CStr;
@@ -80,16 +82,38 @@ pub unsafe extern fn config_with_port(port: u16) -> *mut c_void {
 }
 
 #[no_mangle]
-pub unsafe extern fn config_detailed(ptr: *const FFIConfiguration) -> *mut c_void {
+pub unsafe extern fn config_detailed(ptr: *const FFIConfiguration, errno: *mut u8)
+                                     -> *mut c_void {
+    match parse_config(ptr) {
+        Ok(conf) => {
+            *errno = ERR_OK;
+            Box::into_raw(Box::new(conf)) as *mut c_void
+        },
+        Err(err) => {
+            *errno = nr2err_code(err);
+            std::ptr::null_mut()
+        }
+    }
+}
+
+unsafe fn parse_config(ptr: *const FFIConfiguration)
+                       -> Result<NetworkConfiguration, NetworkError> {
     let mut conf = NetworkConfiguration::new_local();
     conf.config_path = (*(*ptr).config_path).unpack();
     conf.net_config_path = (*(*ptr).net_config_path).unpack();
-    let address_str = (*(*ptr).listen_address).unpack();
+    match (*(*ptr).listen_address).unpack() {
+        Some(address) => {
+            conf.listen_address = address.to_socket_addrs()?.next()
+        },
+        None => {
+            ()
+        }
+    }
     match (*(*ptr).boot_node).unpack() {
         Some(node) => conf.boot_nodes.push(node),
         None => ()
-    }
-    Box::into_raw(Box::new(conf)) as *mut c_void
+    };
+    Ok(conf)
 }
 
 #[no_mangle]

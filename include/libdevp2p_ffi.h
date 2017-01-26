@@ -65,7 +65,7 @@ extern "C" {
     // bind to 0.0.0.0 with specified port
     void* config_with_port(uint16_t port);
     // advanced configuration
-    void* config_detailed(struct Configuration*);
+    void* config_detailed(struct Configuration*, unsigned char* errno);
 
     void unpack_and_print(struct StrLen*, struct StrLen*);
 
