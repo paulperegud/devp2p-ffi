@@ -109,6 +109,14 @@ unsafe fn parse_config(ptr: *const FFIConfiguration)
             ()
         }
     }
+    match (*(*ptr).public_address).unpack() {
+        Some(address) => {
+            conf.public_address = address.to_socket_addrs()?.next()
+        },
+        None => {
+            ()
+        }
+    }
     match (*(*ptr).boot_node).unpack() {
         Some(node) => conf.boot_nodes.push(node),
         None => ()
@@ -276,6 +284,7 @@ pub struct FFIConfiguration {
     config_path: *const StrLen,
     net_config_path: *const StrLen,
     listen_address: *const StrLen,
+    public_address: *const StrLen,
     boot_node: *const StrLen,
 }
 
