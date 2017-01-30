@@ -25,7 +25,6 @@ use std::ffi::CStr;
 use libc::c_void;
 use std::os::raw::c_char;
 use std::str;
-use std::mem;
 
 const ERR_OK: u8 = 0;
 const ERR_UNKNOWN_PEER: u8 = 1;
@@ -326,15 +325,15 @@ unsafe fn parse_config(ptr: *const FFIConfiguration)
     }
 
     let nodes = (*ptr).boot_nodes;
-    for nodeIdx in 0..(*nodes).nodes_number {
-
-        let node = (*(*((*nodes).nodes.offset(nodeIdx as isize)))).unpack();
-        match node {
-            Some(x) => conf.boot_nodes.push(x),
-            None    => (),
+    if nodes != std::ptr::null_mut() {
+        for node_idx in 0..(*nodes).nodes_number {
+            let node = (*(*((*nodes).nodes.offset(node_idx as isize)))).unpack();
+            match node {
+                Some(x) => conf.boot_nodes.push(x),
+                None    => (),
+            }
         }
     }
-
     Ok(conf)
 }
 
