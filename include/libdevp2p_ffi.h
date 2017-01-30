@@ -20,6 +20,11 @@ extern "C" {
         char* buff;
     };
 
+    struct BootNodes {
+        size_t nodes_number;
+        struct StrLen** nodes;
+    };
+
     struct Configuration {
         // Directory path to store general network configuration. None means nothing will be saved
         struct StrLen* config_path;
@@ -34,7 +39,7 @@ extern "C" {
         // Port for UDP connections, same as TCP if set to zero
         uint16_t udp_port;
         // Bootstrap node address; Parity's devp2p supports a list of boot_nodes; this FFI - not yet.
-        struct StrLen* boot_node;
+        struct BootNodes* boot_nodes;
     };
 
     /* used as a value returned in errno and everywhere where function returns uint8_t */
