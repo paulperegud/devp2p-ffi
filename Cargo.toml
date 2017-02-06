@@ -11,3 +11,10 @@ ethcore-network = { git = "https://github.com/ethcore/parity", tag = "v1.5.0" }
 [lib]
 path = "src/lib.rs"
 crate-type = ["dylib"]
+
+[features]
+
+# signaled by rust_ext; cargo is mad if it's not listed here
+python27-sys = []
+python3-sys = []
+
