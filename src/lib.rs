@@ -98,6 +98,7 @@ pub unsafe extern fn config_detailed(ptr: *const FFIConfiguration, errno: *mut u
 
 #[no_mangle]
 pub unsafe extern fn network_service(conf_ptr: *mut c_void, errno: *mut u8) -> *mut c_void {
+    println!("network_service");
     let conf = Box::from_raw(conf_ptr as *mut NetworkConfiguration);
     match NetworkService::new(*conf) {
         Ok(service) => {
@@ -172,6 +173,7 @@ pub unsafe extern fn network_service_node_name(sp: *mut c_void) -> *mut c_char {
 pub unsafe extern fn protocol_send(ns_ptr: *mut c_void, protocol_id: *mut i8,
                                    peer: PeerId, packet_id: u8, data_ptr: *mut u8,
                                    length: usize) {
+    println!("protocol_send");
     let service = &mut *(ns_ptr as *mut NetworkService);
     let bytes = std::slice::from_raw_parts(data_ptr, length).clone().to_vec();
     let pid = cast_protocol_id(protocol_id);
