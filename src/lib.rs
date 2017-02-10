@@ -16,6 +16,8 @@
 extern crate libc;
 extern crate ethcore_network as net;
 use net::*;
+// use net::NodeId as NodeId;
+
 
 use std::sync::Arc;
 use std::net::ToSocketAddrs;
@@ -25,6 +27,8 @@ use std::ffi::CStr;
 use libc::c_void;
 use std::os::raw::c_char;
 use std::str;
+use std::ptr::null_mut as null_mut;
+
 
 const ERR_OK: u8 = 0;
 const ERR_UNKNOWN_PEER: u8 = 1;
@@ -114,7 +118,7 @@ pub unsafe extern fn network_service(conf_ptr: *mut c_void, errno: *mut u8) -> *
 #[no_mangle]
 pub unsafe extern fn network_service_free(x: *mut c_void) {
     Box::from_raw(x as *mut NetworkService);
-    return
+    ()
 }
 
 #[no_mangle]
@@ -209,6 +213,36 @@ pub unsafe extern fn peer_protocol_version(io_ptr: *const c_void, pid: *mut i8, 
     };
 }
 
+pub unsafe extern fn peer_session_info(io_ptr: *const c_void, peer: PeerId, errno: *mut u8)
+                                       -> *mut c_void {
+    let io = &mut *(io_ptr as *mut NetworkContext);
+    match io.session_info(peer) {
+        Some(session_info) => {
+            *errno = ERR_OK;
+            Box::into_raw(Box::new(FFISessionInfo::new(session_info))) as *mut c_void
+        },
+        None => {
+            *errno = ERR_UNKNOWN_PEER;
+            null_mut()
+        }
+    }
+}
+
+pub unsafe extern fn peer_session_info_free(ptr: *const c_void) {
+    Box::from_raw(ptr as *mut FFISessionInfo);
+    ()
+}
+
+// this leaks memory if called from FFI; used only in unit test
+pub unsafe extern fn repack_str_len(ptr: *const StrLen) -> *mut c_void {
+    let rust_string = (*ptr).unpack().unwrap();
+    Box::into_raw(Box::new(StrLen::new(rust_string))) as *mut c_void
+}
+
+pub unsafe extern fn add_two(x: u8) -> u8 {
+    x + 2
+}
+
 /// implementation of devp2p sub-protocol handler for interfacing with FFI
 
 pub struct StrLen {
@@ -217,6 +251,14 @@ pub struct StrLen {
 }
 
 impl StrLen {
+    pub fn new(source: String) -> Self {
+        let mut bytes = source.into_bytes();
+        let len = bytes.len();
+        StrLen {
+            buff: bytes.as_mut_ptr(),
+            len: len,
+        }
+    }
     pub fn unpack(&self) -> Option<String> {
         match self.buff.is_null() {
             true => None,
@@ -241,6 +283,45 @@ pub struct FFIConfiguration {
     public_address: *const StrLen,
     udp_port: u16,
     boot_nodes: *const BootNodes,
+}
+
+pub struct FFISessionInfo {
+	  /// Peer public key
+	  pub id: *const u8,
+	  /// Peer client ID
+	  pub client_version: StrLen,
+	  // /// Peer RLPx protocol version
+	  // pub protocol_version: u32,
+	  // /// Session protocol capabilities
+	  // pub capabilities: Vec<SessionCapabilityInfo>,
+	  // /// Peer protocol capabilities
+	  // pub peer_capabilities: Vec<PeerCapabilityInfo>,
+	  // /// Peer ping delay in milliseconds
+	  // pub ping_ms: u64,
+	  // /// True if this session was originated by us.
+	  // pub originated: bool,
+	  /// Remote endpoint address of the session
+	  pub remote_address: StrLen,
+	  /// Local endpoint address of the session
+	  pub local_address: StrLen,
+}
+
+impl FFISessionInfo {
+    pub fn new(s: SessionInfo) -> Self {
+        let id_ = match s.id {
+            Some(node_id) => {
+                println!("node_id: {}", node_id);
+                node_id.as_ptr()
+            },
+            None => null_mut()
+        };
+        FFISessionInfo {
+            id: id_,
+            client_version: StrLen::new(s.client_version),
+            remote_address: StrLen::new(s.remote_address),
+            local_address: StrLen::new(s.local_address),
+        }
+    }
 }
 
 pub struct FFIHandler {

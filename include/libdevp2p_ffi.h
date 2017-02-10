@@ -25,6 +25,13 @@ extern "C" {
         struct StrLen** nodes;
     };
 
+    struct SessionInfo {
+        char* id;
+        struct StrLen* client_version;
+        struct StrLen* remote_address;
+        struct StrLen* local_address;
+    };
+
     struct Configuration {
         // Directory path to store general network configuration. None means nothing will be saved
         struct StrLen* config_path;
@@ -108,9 +115,18 @@ extern "C" {
     uint8_t peer_protocol_version(void* io, uint8_t* protocol_id,
                                   size_t peer_id, uint8_t* errno);
 
-    // OTHER
+    // PEERS
+    void* peer_session_info(void* io_ptr, size_t peer_id, uint8_t* errno);
+    void peer_session_info_free(void* ptr);
     int32_t network_service_add_reserved_peer(void* service, char const* node_name);
+
+    // OTHER
     uint8_t const* network_service_node_name(void* service);
+
+    uint8_t add_two(uint8_t x);
+
+    // TESTS
+    void* repack_str_len(struct StrLen* ptr);
 
 #ifdef __cplusplus
 }
