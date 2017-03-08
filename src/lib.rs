@@ -25,6 +25,7 @@ use std::ffi::CStr;
 use libc::c_void;
 use std::os::raw::c_char;
 use std::str;
+use std::ptr::null_mut as null_mut;
 
 const ERR_OK: u8 = 0;
 const ERR_UNKNOWN_PEER: u8 = 1;
@@ -114,7 +115,7 @@ pub unsafe extern fn network_service(conf_ptr: *mut c_void, errno: *mut u8) -> *
 #[no_mangle]
 pub unsafe extern fn network_service_free(x: *mut c_void) {
     Box::from_raw(x as *mut NetworkService);
-    return
+    ()
 }
 
 #[no_mangle]
@@ -209,6 +210,38 @@ pub unsafe extern fn peer_protocol_version(io_ptr: *const c_void, pid: *mut i8, 
     };
 }
 
+#[no_mangle]
+pub unsafe extern fn peer_session_info(io_ptr: *mut c_void, peer: PeerId, errno: *mut u8)
+    -> *mut FFISessionInfo {
+    let io = &mut *(io_ptr as *mut NetworkContext);
+    match io.session_info(peer as PeerId) {
+        Some(session_info) => {
+            *errno = ERR_OK;
+            Box::into_raw(Box::new(FFISessionInfo::new(session_info)))
+        },
+        None => {
+            *errno = ERR_UNKNOWN_PEER;
+            null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern fn peer_session_info_free(ptr: *mut FFISessionInfo) {
+    let session = &mut *(ptr);
+    if !session.client_version.is_null() {
+        CString::from_raw(session.client_version);
+    }
+    if !session.remote_address.is_null() {
+        CString::from_raw(session.remote_address);
+    }
+    if !session.local_address.is_null() {
+        CString::from_raw(session.local_address);
+    }
+    Box::from_raw(ptr);
+    ()
+}
+
 /// implementation of devp2p sub-protocol handler for interfacing with FFI
 
 pub struct StrLen {
@@ -256,6 +289,45 @@ pub struct FFICallbacks {
     connected: ConnectedFN,
     read: ReadFN,
     disconnected: DisconnectedFN,
+}
+
+pub struct FFISessionInfo {
+    /// Peer public key
+    pub id: *const u8,
+    /// Peer client ID
+    pub client_version: *mut c_char,
+    // /// Peer RLPx protocol version
+    // pub protocol_version: u32,
+    // /// Session protocol capabilities
+    // pub capabilities: Vec<SessionCapabilityInfo>,
+    // /// Peer protocol capabilities
+    // pub peer_capabilities: Vec<PeerCapabilityInfo>,
+    // /// Peer ping delay in milliseconds
+    // pub ping_ms: u64,
+    // /// True if this session was originated by us.
+    // pub originated: bool,
+    /// Remote endpoint address of the session
+    pub remote_address: *mut c_char,
+    /// Local endpoint address of the session
+    pub local_address: *mut c_char,
+}
+
+impl FFISessionInfo {
+    pub fn new(s: SessionInfo) -> Self {
+        let id_ = match s.id {
+            Some(node_id) => {
+                println!("node_id: {}", node_id);
+                node_id.as_ptr()
+            },
+            None => null_mut()
+        };
+        FFISessionInfo {
+            id: id_,
+            client_version: CString::new(s.client_version).unwrap().into_raw(),
+            remote_address: CString::new(s.remote_address).unwrap().into_raw(),
+            local_address: CString::new(s.local_address).unwrap().into_raw(),
+        }
+    }
 }
 
 pub struct FFIObject(*const c_void);

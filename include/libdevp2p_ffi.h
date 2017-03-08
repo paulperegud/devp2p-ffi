@@ -42,6 +42,13 @@ extern "C" {
         struct BootNodes* boot_nodes;
     };
 
+    struct SessionInfo {
+        char* id;
+        char* client_version;
+        char* remote_address;
+        char* local_address;
+    };
+
     /* used as a value returned in errno and everywhere where function returns uint8_t */
     enum ErrCodes {
         ERR_OK = 0,
@@ -111,6 +118,9 @@ extern "C" {
     // OTHER
     int32_t network_service_add_reserved_peer(void* service, char const* node_name);
     uint8_t const* network_service_node_name(void* service);
+
+    struct SessionInfo* peer_session_info(void* io_ptr, size_t peer_id, unsigned char* errno);
+    void peer_session_info_free(struct SessionInfo* ptr);
 
 #ifdef __cplusplus
 }
